@@ -10,7 +10,7 @@ run the jupyter notebook
 
 ## Testing the graph builder
 
-cd build-graph/
-python3
-from main import *
-test and print things
+cd build-graph/ 
+python3 
+from main import * 
+test and print things 
