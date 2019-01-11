@@ -12,5 +12,5 @@ run the jupyter notebook
 
 cd build-graph/
 python3
->>> from main import *
->>> # test and print things
+from main import *
+test and print things
