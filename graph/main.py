@@ -4,6 +4,7 @@ import CERTGraph as cg
 sys.path.append('..')
 
 data_path = '../data/cert_b_users/insiders/CDE1846-logs.csv'
+save_path = '../data/graphs/CDE1846.txt'
 
 graph = cg.CERTGraph()
 graph.read_data(data_path)
@@ -21,11 +22,15 @@ edgelist.append(cg.CERTEdge(2, 2, 2, 3, None))
 edgelist.append(cg.CERTEdge(3, 3, 2, 4, None))
 edgelist.append(cg.CERTEdge(4, 4, 2, 5, None))
 
-M = cg.CERTGraph(edgelist, vlist)
+M = cg.CERTGraph(data=(vlist, edgelist))
 print(M.vertices)
 
-result = graph.temporal_match(M, 500000)
-print('result : ')
-print(result)
-print(len(result))
-print(len(graph.edges))
+#result = graph.temporal_match(M, 500000)
+#print('result : ')
+#print(result)
+#print(len(result))
+#print(len(graph.edges))
+
+graph.save(save_path)
+
+graph2 = cg.CERTGraph(g_file=save_path)

@@ -22,6 +22,9 @@ class CERTVertex():
     
     def __repr__(self):
         return "CERTVertex {}, type={}".format(self.name, self.vertex_type)
+    
+    def elements_as_str(self):
+        return self.name + ',' + self.vertex_type
 
 class CERTEdge():
     '''
@@ -30,7 +33,7 @@ class CERTEdge():
     
     def __init__(self, name, timestamp, tail, head, edge_type):
         self.name = name
-        self.timestamp = timestamp
+        self.timestamp = int(timestamp)
         self.tail = tail
         self.head = head
         self.edge_type = edge_type
@@ -42,12 +45,21 @@ class CERTEdge():
             self.tail,
             self.head,
             self.edge_type)
+    
+    def elements_as_str(self):
+        s = ''
+        s += self.name + ','
+        s += str(self.timestamp) + ','
+        s += self.tail + ','
+        s += self.head + ','
+        s += self.edge_type
+        return s
 
 class CERTGraph():
     '''
     A graph representation of the CERT Insider threat dataset.
     '''
-    def __init__(self, edgelist=None, vertexlist=None):
+    def __init__(self, g_file=None, data=None):
         self.vertices = []
         self.edges = []
         self.n = 0 # Number of edges for generating edge name
@@ -55,10 +67,12 @@ class CERTGraph():
         # A dictionnary for storing the email content : since we lack an email 
         # identifier in the log data, we assume two emails to be the same if the
         # email content matches.
-        if edgelist and vertexlist:
-            self.edges = edgelist
-            self.vertices = vertexlist
-            self.n = len(edgelist)
+        if g_file:
+            self.read_graph_file(g_file)
+        if data:
+            self.vertices = data[0]
+            self.edges = data[1]
+            self.n = len(self.edges)
     
     def __repr__(self):
         return "CERTGraph: %s vertices, %s edges" % (len(self.vertices), len(self.edges))
@@ -208,7 +222,7 @@ class CERTGraph():
             self.add_edge(edge_name, edge_time, edge_tail, edge_head, edge_type)
     
     def read_data(self, data_path):
-        df = pd.read_csv(data_path, nrows=500)
+        df = pd.read_csv(data_path)
         print('reading data ...')
         for idx, row in tqdm(df.iterrows()):
             self._parse_row(row)
@@ -234,15 +248,15 @@ class CERTGraph():
                 print('eM %s' % eM)
                 # Test if all edges in M are matched
                 if eM == len(M.edges)-1:
-                    estack.append(eG)
+                    estack.append(eG) # ! Not in algo
                     print('YAYY!!11!1 : %s' % estack)
                     elist = [self.edges[e] for e in estack]
                     print(elist)
                     vlist = [self.vertices[v] for v in self.to_vertex_list(elist)]
-                    H = CERTGraph(elist, vlist)
+                    H = CERTGraph(data=(vlist, elist))
                     print(H)
                     results.append(H)
-                    estack.pop()
+                    estack.pop() # ! Not in algo
                     #print('results %s' % results)
                 else:
                     print('else, eG : %s' % eG)
@@ -341,6 +355,44 @@ class CERTGraph():
             if h not in vlist:
                 vlist.append(h)
         return vlist
+    
+    def save(self, path):
+        """
+        Function for saving the graph data to a file after it has been built.
+        
+        Args :
+        path (str) : a valid path to save the graph.
+        """
+        with open(path, 'w') as f:
+            f.write("CERTGraph %s, %s\n" % (len(self.vertices), len(self.edges)))
+            f.write("vertices\n")
+            for v in self.vertices:
+                f.write(v.elements_as_str())
+                f.write("\n")
+            f.write("edges\n")
+            for e in self.edges:
+                f.write(e.elements_as_str())
+                f.write("\n")
+    
+    def read_graph_file(self, path):
+        """
+        Reads a graph directly from file.
+        Fills the lists of vertices and edges from the file.
+        
+        Args:
+        path (str) : a valid path to a graph file
+        """
+        mode = ''
+        with open(path, 'r') as f:
+            for line in f:
+                if line == 'vertices\n':
+                    mode = 'v'
+                elif line == 'edges\n':
+                    mode = 'e'
+                elif mode == 'v':
+                    self.vertices.append(CERTVertex(*line.replace('\n', '').split(',')))
+                elif mode == 'e':
+                    self.edges.append(CERTEdge(*line.replace('\n', '').split(',')))
     
     
 
