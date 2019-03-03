@@ -10,28 +10,28 @@ import re
 from copy import copy
 from tqdm import tqdm
 
-class CERTVertex():
+class Vertex():
     '''
     A vertex of the CERT dataset graph.
     '''
     
-    def __init__(self, name, vertex_type):
+    def __init__(self, name, vertex_type=None):
         # consider adding an index to speed up the search in to_vertices
         self.name = name
         self.vertex_type = vertex_type
     
     def __repr__(self):
-        return "CERTVertex {}, type={}".format(self.name, self.vertex_type)
+        return "Vertex {}, type={}".format(self.name, self.vertex_type)
     
     def elements_as_str(self):
         return self.name + ',' + self.vertex_type
 
-class CERTEdge():
+class Edge():
     '''
     An edge of the CERT dataset graph.
     '''
     
-    def __init__(self, name, timestamp, tail, head, edge_type):
+    def __init__(self, name, timestamp, tail, head, edge_type=None):
         self.name = name
         self.timestamp = int(timestamp)
         self.tail = tail
@@ -39,7 +39,7 @@ class CERTEdge():
         self.edge_type = edge_type
     
     def __repr__(self):
-        return "CERTEdge {}, timestamp={}, tail=({}), head=({}), type={}".format(
+        return "Edge {}, timestamp={}, tail=({}), head=({}), type={}".format(
             self.name, 
             self.timestamp,
             self.tail,
@@ -55,7 +55,7 @@ class CERTEdge():
         s += self.edge_type
         return s
 
-class CERTGraph():
+class Graph():
     '''
     A graph representation of the CERT Insider threat dataset.
     '''
@@ -73,14 +73,23 @@ class CERTGraph():
             self.vertices = data[0]
             self.edges = data[1]
             self.n = len(self.edges)
+        self.eGtrace = []
+        self.eMtrace = []
+        self.estacktrace = []
+        self.sort_edges()
     
     def __repr__(self):
-        return "CERTGraph: %s vertices, %s edges" % (len(self.vertices), len(self.edges))
+        return "Graph: %s vertices, %s edges" % (len(self.vertices), len(self.edges))
     
     def get_vertex(self, name):
         for v in self.vertices:
             if v.name == name:
                 return v
+    
+    def get_edge(self, name):
+        for e in self.edges:
+            if e.name == name:
+                return e
     
     def get_vertex_index(self, name):
         for i, v in enumerate(self.vertices):
@@ -92,14 +101,26 @@ class CERTGraph():
         for v in self.vertices:
             if v.name == vertex_name:
                 return
-        vertex = CERTVertex(vertex_name, vertex_type)
+        vertex = Vertex(vertex_name, vertex_type)
         self.vertices.append(vertex)
     
     def add_edge(self, name, timestamp, tail, head, edge_type):
         # We assume each edge creation is unique, to save time at edge creation
-        edge = CERTEdge(name, timestamp, tail, head, edge_type)
+        edge = Edge(name, timestamp, tail, head, edge_type)
         self.edges.append(edge)
         self.n += 1
+    
+    def sort_edges(self):
+        """
+        Sorts edges by timestamp.
+        """
+        try:
+            import operator
+            keyfun = operator.attrgetter("timestamp")
+        except:
+            keyfun = lambda e: e.timestamp
+            
+        self.edges.sort(key=keyfun)
     
     def _generate_email_name(self, typ, row):
         if typ == 'email':
@@ -198,13 +219,14 @@ class CERTGraph():
             return
         edge_name = str(self.n + 1)
         self.add_vertex(tail_vertex_name, tail_vertex_type)
-        self.add_vertex(head_vertex_name, tail_vertex_type)
+        self.add_vertex(head_vertex_name, head_vertex_type)
         self.add_edge(edge_name, edge_time, edge_tail, edge_head, edge_type)
     
     def _create_attach(self, row, email_name):
-        files = re.findall('C:\\\\.*\....', row['email_attachments'])
+        files = row['email_attachments'].split(sep=';')
         for f in files:
             # tail vertex
+            f = f.replace(re.findall('\(.*\)', f)[0], '') # get rid of the parenthesis
             tail_vertex_name = f
             tail_vertex_type = 'file'
             # head vertex
@@ -226,10 +248,13 @@ class CERTGraph():
         print('reading data ...')
         for idx, row in tqdm(df.iterrows()):
             self._parse_row(row)
+        print('sorting edges ...')
+        self.sort_edges
+        print('done')
     
     def temporal_match(self, M, delta):
         # Initialize necessary variables :
-        edgecount = [0] * len(self.edges)
+        edgecount = [0] * len(self.vertices)
         mapGM = [-1] * len(self.vertices)
         mapMG = [-1] * len(M.vertices)
         results = []
@@ -241,43 +266,42 @@ class CERTGraph():
         # Loop until all matching subgraphs are found
         while True:
             i += 1
-            print('loop : %s' % i)
             eG = self.find_next_match(M, eM, eG, mapMG, mapGM, t)
-            print('next match %s' % eG)
+            print("eM : %s" % eM)
+            print("eG : %s" % eG)
             if eG < len(self.edges):
-                print('eM %s' % eM)
                 # Test if all edges in M are matched
                 if eM == len(M.edges)-1:
+                    print('YAYAYAYYYAY!!111!1!')
                     estack.append(eG) # ! Not in algo
-                    print('YAYY!!11!1 : %s' % estack)
                     elist = [self.edges[e] for e in estack]
-                    print(elist)
                     vlist = [self.vertices[v] for v in self.to_vertex_list(elist)]
-                    H = CERTGraph(data=(vlist, elist))
-                    print(H)
+                    H = Graph(data=(vlist, elist))
                     results.append(H)
+                    print(H)
                     estack.pop() # ! Not in algo
                     #print('results %s' % results)
                 else:
-                    print('else, eG : %s' % eG)
-                    uG, vG = self.to_vertices(eG)
-                    uM, vM = M.to_vertices(eM)
+                    uG, vG = self.to_vertices(eG) # TODO check 
+                    uM, vM = M.to_vertices(eM) 
                     mapGM[uG] = uM
                     mapGM[vG] = vM
                     mapMG[uM] = uG
                     mapMG[vM] = vG
                     edgecount[uG] += 1
+                    #print("vg : %s" % vG)
                     edgecount[vG] += 1
                     if not estack:
                         t = self.edges[eG].timestamp + delta
                     estack.append(eG)
                     eM += 1
-                    print(eM)
             eG += 1
             # Backup or quit if we run out of egdes
             while eG >= len(self.edges) or self.edges[eG].timestamp >= t:
                 if estack:
                     eG = estack.pop() + 1
+                    #uG, vG = self.to_vertices(eG)
+                    #self.estacktrace.append(-eG+1)
                     if not estack:
                         t = float('inf')
                     edgecount[uG] -= 1
@@ -300,7 +324,7 @@ class CERTGraph():
         Subroutine for finding the next matching temporal that matches edge eM
         in our motif M.
         '''
-        #print(eM)
+        print("find next match")
         uM, vM = M.to_vertices(eM)
         uG = mapMG[uM]
         vG = mapMG[vM]
@@ -313,17 +337,14 @@ class CERTGraph():
                                                         and edge.timestamp <= t
                                                         and edge.tail == self.vertices[uG].name 
                                                         and edge.head == self.vertices[vG].name]
-            print(len(S))
         elif uG >= 0:
             S = [e for e, edge in enumerate(self.edges) if e >= eG 
                                                         and edge.timestamp <= t
                                                         and edge.tail == self.vertices[uG].name] 
-            print(len(S))
         elif vG >= 0:
             S = [e for e, edge in enumerate(self.edges) if e >= eG 
                                                         and edge.timestamp <= t
                                                         and edge.head == self.vertices[vG].name]
-            print(len(S))
         # Try each edge until a match is made :
         for e in S:
             u1G, v1G = self.to_vertices(e)
@@ -331,7 +352,9 @@ class CERTGraph():
             if uG == u1G or (uG < 0 and mapGM[u1G] < 0):
                 if vG == v1G or (vG < 0 and mapGM[v1G] < 0):
                     #if (self.vertices[uG] ): #TODO
+                    print("matched : %s " % e)
                     return e
+        print("matched : %s " % len(self.edges))
         return len(self.edges)
     
     def to_vertices(self, e): #TODO : optimize this !
@@ -364,7 +387,7 @@ class CERTGraph():
         path (str) : a valid path to save the graph.
         """
         with open(path, 'w') as f:
-            f.write("CERTGraph %s, %s\n" % (len(self.vertices), len(self.edges)))
+            f.write("Graph %s, %s\n" % (len(self.vertices), len(self.edges)))
             f.write("vertices\n")
             for v in self.vertices:
                 f.write(v.elements_as_str())
@@ -390,9 +413,9 @@ class CERTGraph():
                 elif line == 'edges\n':
                     mode = 'e'
                 elif mode == 'v':
-                    self.vertices.append(CERTVertex(*line.replace('\n', '').split(',')))
+                    self.vertices.append(Vertex(*line.replace('\n', '').split(',')))
                 elif mode == 'e':
-                    self.edges.append(CERTEdge(*line.replace('\n', '').split(',')))
+                    self.edges.append(Edge(*line.replace('\n', '').split(',')))
     
     
 
