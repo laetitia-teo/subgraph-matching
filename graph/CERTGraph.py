@@ -15,16 +15,15 @@ class Vertex():
     A vertex of the CERT dataset graph.
     '''
     
-    def __init__(self, name, vertex_type=None):
+    def __init__(self, name):
         # consider adding an index to speed up the search in to_vertices
         self.name = name
-        self.vertex_type = vertex_type
     
     def __repr__(self):
-        return "Vertex {}, type={}".format(self.name, self.vertex_type)
+        return "Vertex {}".format(self.name)
     
     def elements_as_str(self):
-        return self.name + ',' + self.vertex_type
+        return self.name
 
 class Edge():
     '''
@@ -59,7 +58,7 @@ class Graph():
     '''
     A graph representation of the CERT Insider threat dataset.
     '''
-    def __init__(self, g_file=None, data=None):
+    def __init__(self, g_file=None, elist=None):
         self.vertices = []
         self.edges = []
         self.n = 0 # Number of edges for generating edge name
@@ -69,10 +68,10 @@ class Graph():
         # email content matches.
         if g_file:
             self.read_graph_file(g_file)
-        if data:
-            self.vertices = data[0]
-            self.edges = data[1]
+        if elist:
+            self.edges = copy(elist) # is it useful to copy ?
             self.n = len(self.edges)
+            self.create_vertices()
         self.eGtrace = []
         self.eMtrace = []
         self.estacktrace = []
@@ -90,18 +89,23 @@ class Graph():
         for e in self.edges:
             if e.name == name:
                 return e
+                
+    def create_vertices(self):
+        for e in self.edges:
+            self.add_vertex(e.tail)
+            self.add_vertex(e.head)
     
     def get_vertex_index(self, name):
         for i, v in enumerate(self.vertices):
             if v.name == name:
                 return i
     
-    def add_vertex(self, vertex_name, vertex_type):
+    def add_vertex(self, vertex_name):
         # Check if vertex already exists
         for v in self.vertices:
             if v.name == vertex_name:
                 return
-        vertex = Vertex(vertex_name, vertex_type)
+        vertex = Vertex(vertex_name)
         self.vertices.append(vertex)
     
     def add_edge(self, name, timestamp, tail, head, edge_type):
@@ -148,99 +152,57 @@ class Graph():
     
     def _parse_row(self, row):
         if not self._isnull(row['email_activity']): # TODO : add email action 'Attach'
-            # tail vertex
-            tail_vertex_name = row['host']
-            tail_vertex_type = 'pc'
-            # head vertex
-            head_vertex_name = self._generate_email_name('email', row)
-            head_vertex_type = 'email'
             # edge
             edge_type = row['email_activity']
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
-            edge_name = self._generate_edge_name(row['email_activity'])
+            edge_tail = row['host']
+            edge_head = self._generate_email_name('email', row)
             # Since email : 'Attach' does not exist we create it
             if not self._isnull(row['email_attachments']) and row['email_activity'] == 'Send':
-                self._create_attach(row, head_vertex_name)
+                self._create_attach(row, edge_head)
+            edge_name = self._generate_edge_name(row['email_activity'])
         elif not self._isnull(row['file_activity']):
-            # tail vertex
-            tail_vertex_name = row['host']
-            tail_vertex_type = 'pc'
-            # head vertex
-            head_vertex_name = row['file_filename']
-            head_vertex_type = 'file'
             # edge
             edge_type = row['file_activity']
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
+            edge_tail = row['host']
+            edge_head = row['file_filename']
             edge_name = self._generate_edge_name(row['file_activity'])
         elif not self._isnull(row['device_activity']):
-            # tail vertex
-            tail_vertex_name = row['user']
-            tail_vertex_type = 'employee'
-            # head vertex
-            head_vertex_name = row['host']
-            head_vertex_type = 'pc'
             # edge
             edge_type = row['device_activity']
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
+            edge_tail = row['user']
+            edge_head = row['host']
             edge_name = self._generate_edge_name(row['device_activity'])
         elif not self._isnull(row['http_activity']):
-            # tail vertex
-            tail_vertex_name = row['host']
-            tail_vertex_type = 'pc'
-            # head vertex
-            head_vertex_name = row['http_url']
-            head_vertex_type = 'http'
             # edge
             edge_type = row['http_activity']
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
+            edge_tail = row['host']
+            edge_head = row['http_url']
             edge_name = self._generate_edge_name(row['http_activity'])
         elif not self._isnull(row['logon_activity']):
-            # tail vertex
-            tail_vertex_name = row['user']
-            tail_vertex_type = 'employee'
-            # head vertex
-            head_vertex_name = row['host']
-            head_vertex_type = 'pc'
             # edge
             edge_type = row['logon_activity']
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
+            edge_tail = row['user']
+            edge_head = row['host']
             edge_name = self._generate_edge_name(row['logon_activity'])
         else:
             return
-        edge_name = str(self.n + 1)
-        self.add_vertex(tail_vertex_name, tail_vertex_type)
-        self.add_vertex(head_vertex_name, head_vertex_type)
         self.add_edge(edge_name, edge_time, edge_tail, edge_head, edge_type)
     
     def _create_attach(self, row, email_name):
         files = row['email_attachments'].split(sep=';')
         for f in files:
-            # tail vertex
-            f = f.replace(re.findall('\(.*\)', f)[0], '') # get rid of the parenthesis
-            tail_vertex_name = f
-            tail_vertex_type = 'file'
-            # head vertex
-            head_vertex_name = email_name
-            head_vertex_type = 'email'
             # edge
+            f = f.replace(re.findall('\(.*\)', f)[0], '') # get rid of the parenthesis
             edge_type = 'Attach'
             edge_time = row['date']
-            edge_tail = tail_vertex_name
-            edge_head = head_vertex_name
+            edge_tail = f
+            edge_head = email_name
             edge_name = self._generate_edge_name('Attach')
-            self.n += 1 # maybe define this in generate_edge_name ?
-            self.add_vertex(tail_vertex_name, tail_vertex_type)
-            self.add_vertex(head_vertex_name, tail_vertex_type)
             self.add_edge(edge_name, edge_time, edge_tail, edge_head, edge_type)
     
     def read_data(self, data_path):
@@ -251,7 +213,8 @@ class Graph():
         print('sorting edges ...')
         self.sort_edges
         print('done')
-    
+        self.create_vertices()
+    """
     def temporal_match(self, M, delta):
         # Initialize necessary variables :
         edgecount = [0] * len(self.vertices)
@@ -275,8 +238,7 @@ class Graph():
                     print('YAYAYAYYYAY!!111!1!')
                     estack.append(eG) # ! Not in algo
                     elist = [self.edges[e] for e in estack]
-                    vlist = [self.vertices[v] for v in self.to_vertex_list(elist)]
-                    H = Graph(data=(vlist, elist))
+                    H = Graph(elist=elist)
                     results.append(H)
                     print(H)
                     estack.pop() # ! Not in algo
@@ -364,6 +326,7 @@ class Graph():
         #print(u)
         #print(v)
         return u, v
+    """
     
     def to_vertices_obj(self, edge): #TODO : optimize this !
         u, v = self.get_vertex_index(edge.tail), self.get_vertex_index(edge.head)
@@ -417,6 +380,124 @@ class Graph():
                 elif mode == 'e':
                     self.edges.append(Edge(*line.replace('\n', '').split(',')))
     
+    def temporal_match(self, M, d):
+        """
+        Temporal subgraph matching function.
+        """
+        edgeCount = [0] * len(self.edges)
+        mapGM = [-1] * len(self.edges)
+        mapMG = [-1] * len(M.edges)
+        results = []
+        eStack = []
+        eG = 0
+        eM = 0
+        t = float('inf')
+        i = 0
+        while i < 100000:
+            i += 1
+            eG = self.find_next_match(M, eM, eG, mapMG, mapGM, t)
+            print('eG : %s' % eG)
+            print('eM : %s' % eM)
+            #print(mapGM)
+            #print(mapMG)
+            if eG < len(self.edges):
+            # We matched something !
+                if eM == len(M.edges) - 1:
+                    print('YAYAYAY!!!!!')
+                    edges = [self.edges[e] for e in eStack]
+                    results.append(Graph(elist=edges))
+                else:
+                    uG, vG = self.to_vertices(eG)
+                    uM, vM = M.to_vertices(eM)
+                    mapGM[uG] = uM
+                    mapGM[vG] = vM
+                    mapMG[uM] = uG
+                    mapMG[vM] = vG
+                    edgeCount[uG] += 1
+                    edgeCount[vG] += 1
+                    if eStack == []:
+                        t = self.edges[eG].timestamp + d
+                    eStack.append(eG)
+                    eM += 1
+            eG += 1
+            while eG >= len(self.edges) or self.edges[eG].timestamp > t:
+                if eStack != []:
+                    eG = eStack.pop() + 1
+                    if eStack == []:
+                        t = float('inf')
+                    edgeCount[uG] -= 1
+                    edgeCount[vG] -= 1
+                    if edgeCount[uG] == 0:
+                        uM = mapGM[uG]
+                        mapMG[uM] = -1
+                        mapGM[uG] = -1
+                    if edgeCount[vG] == 0:
+                        vM = mapGM[vG]
+                        mapMG[vM] = -1
+                        mapGM[vG] = -1
+                    eM -= 1
+                else:
+                    return results
+        
+    def find_next_match(self, M, eM, eG, mapMG, mapGM, t):
+        """
+        Matchfinding auxilliary function
+        """
+        uM, vM = M.to_vertices(eM)
+        uG = mapMG[uM]
+        vG = mapMG[vM]
+        # Determine potential edges to try :
+        S = range(len(self.edges))
+        if uG >= 0 and vG >= 0:
+            print('case 0')
+            '''
+            S = [e for e, edge in enumerate(self.edges) if
+                    e >= eG
+                    and edge.tail == self.vertices[uG].name
+                    and edge.head == self.vertices[vG].name
+                    and edge.timestamp <= t]
+            '''
+            S = range(eG, len(self.edges))
+        elif uG >= 0:
+            print('case 1')
+            '''
+            S = [e for e, edge in enumerate(self.edges) if
+                    e >= eG
+                    and edge.tail == self.vertices[uG].name
+                    and edge.timestamp <= t]
+            '''
+            S = range(eG, len(self.edges))
+        elif vG >= 0:
+            print('case 2')
+            '''
+            S = [e for e, edge in enumerate(self.edges) if
+                    e >= eG
+                    and edge.head == self.vertices[vG].name
+                    and edge.timestamp <= t]
+            '''
+            S = range(eG, len(self.edges))
+        else:
+            print('case 3')
+        print('len s : %s' % len(S))
+        for e in S:
+            u, v = self.to_vertices(e)
+            #print(eG1)
+            #print(uG1, vG1)
+            # The mapping must match or be unassigned
+            if uG == u or (uG < 0 and mapGM[u] < 0):
+                if vG == v or (vG < 0 and mapGM[v] < 0):
+                    print('matched : %s' % e)
+                    return e
+        print('matched (end) : %s' % len(self.edges) )
+        return len(self.edges) 
+    
+    def to_vertices(self, e):
+        """
+        Transforms an edge index into the vertex indices corresponding to the
+        head and tail of the underlying edge.
+        """
+        edge = self.edges[e]
+        return self.get_vertex_index(edge.tail), self.get_vertex_index(edge.head)
     
 
 

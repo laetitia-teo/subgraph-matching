@@ -14,28 +14,26 @@ save_path = '../data/graphs/insiders/CDE1846.txt'
 graph = cg.Graph()
 graph.read_data(data_path)
 
-v1 = cg.Vertex(1, None)
-v2 = cg.Vertex(2, None)
-v3 = cg.Vertex(3, None)
-v4 = cg.Vertex(4, None)
-#v5 = cg.CERTVertex(5, None)
-vlist = [v1, v2, v3, v4]
+graph = cg.Graph(elist=graph.edges[:1000])
 
 edgelist = []
 edgelist.append(cg.Edge(1, 1, 1, 2, None))
 edgelist.append(cg.Edge(2, 2, 2, 4, None))
-edgelist.append(cg.Edge(3, 3, 4, 3, None))
+#edgelist.append(cg.Edge(3, 3, 4, 3, None))
 edgelist.append(cg.Edge(4, 4, 2, 3, None))
 edgelist.append(cg.Edge(5, 5, 1, 2, None))
 
-M = cg.Graph(data=(vlist, edgelist))
+M = cg.Graph(elist=edgelist)
 print(M.vertices)
 
-result = graph.temporal_match(M, 36000000)
+d = 36000000
+
+result = graph.temporal_match(M, d)
 print('result : ')
 print(result)
-print(len(result))
-print(len(graph.edges))
+if result:
+    print(len(result))
+#print(len(graph.edges))
 
 #graph.save(save_path)
 
