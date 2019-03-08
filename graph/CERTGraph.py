@@ -1,6 +1,6 @@
 # Reading the CERT data and generating a graph of the recorded activity
 #
-#
+# Implementing paper : https://arxiv.org/pdf/1801.08098.pdf
 #
 # Author : Laetitia Teodorescu
 
