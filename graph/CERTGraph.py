@@ -2,7 +2,7 @@
 #
 #
 #
-#
+# Author : Laetitia Teodorescu
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,9 @@ from tqdm import tqdm
 class Vertex():
     '''
     A vertex of the CERT dataset graph.
+    
+    Args:
+    - name (str): name of the vertex (identifier, must be unique).
     '''
     
     def __init__(self, name):
@@ -27,7 +30,14 @@ class Vertex():
 
 class Edge():
     '''
-    An edge of the CERT dataset graph.
+    A directed temporal edge of the CERT dataset graph.
+    
+    Args:
+    - name (str): name of the edge (identifier, must be unique);
+    - timestamp (number): timestamp of the edge;
+    - tail (str): name of the vertex this edge is emanating from;
+    - head (str): name of the vertex this edge is pointing to;
+    - edge_type (str): type of the edge (defaults to None). Useful for debugging.
     '''
     
     def __init__(self, name, timestamp, tail, head, edge_type=None):
@@ -57,8 +67,28 @@ class Edge():
 class Graph():
     '''
     A graph representation of the CERT Insider threat dataset.
+    Internally, the Graph stores a list of edges and a list of vertices.
+    
+    There are 3 ways to construct a Graph:
+    - create a Graph from a list of edges :
+        edgelist = [...list of edges...]
+        graph = Graph(elist=edgelist)
+    - create an empty Graph, then read a csv file corresponding to the data :
+        graph = Graph()
+        graph.read_data('path/to/file.csv')
+    - create a Graph from a save of a previous Graph :
+        graph = Graph()
+        # create structure by adding an edge list or reading csv ...
+        # save the Graph
+        graph.save('path/to/file.txt')
+        # load another Graph
+        graph2 = Graph(efile='path/to/file.txt')
+    
+    Args:
+    - elist (list of Edges): list of Edge objects (defaults to None);
+    - efile (path to a graph file): path to a graph file to generate the graph.
     '''
-    def __init__(self, g_file=None, elist=None):
+    def __init__(self, elist=None, efile=None):
         self.vertices = []
         self.edges = []
         self.n = 0 # Number of edges for generating edge name
@@ -81,26 +111,41 @@ class Graph():
         return "Graph: %s vertices, %s edges" % (len(self.vertices), len(self.edges))
     
     def get_vertex(self, name):
+        """
+        Get Vertex by name.
+        """
         for v in self.vertices:
             if v.name == name:
                 return v
     
     def get_edge(self, name):
+        """
+        Get Edge by name.
+        """
         for e in self.edges:
             if e.name == name:
                 return e
                 
     def create_vertices(self):
+        """
+        Once all Edges are created, we create the list of Vertices.
+        """
         for e in self.edges:
             self.add_vertex(e.tail)
             self.add_vertex(e.head)
     
     def get_vertex_index(self, name):
+        """
+        Get index of Vertex in the Vertex list by name.
+        """
         for i, v in enumerate(self.vertices):
             if v.name == name:
                 return i
     
     def add_vertex(self, vertex_name):
+        """
+        Function for adding a new Vertex, if it doesn't already exist.
+        """
         # Check if vertex already exists
         for v in self.vertices:
             if v.name == vertex_name:
@@ -109,6 +154,9 @@ class Graph():
         self.vertices.append(vertex)
     
     def add_edge(self, name, timestamp, tail, head, edge_type):
+        """
+        Adds an Edge to the Edge list.
+        """
         # We assume each edge creation is unique, to save time at edge creation
         edge = Edge(name, timestamp, tail, head, edge_type)
         self.edges.append(edge)
@@ -127,6 +175,9 @@ class Graph():
         self.edges.sort(key=keyfun)
     
     def _generate_email_name(self, typ, row):
+        """
+        Generates email name when reading data from csv.
+        """
         if typ == 'email':
             # search in the email dict for matching email content
             for name, content in self._email_dict.items():
@@ -140,6 +191,9 @@ class Graph():
             raise TypeError('type must be email')
     
     def _generate_edge_name(self, typ):
+        """
+        Generates Edge name when reading data from csv.
+        """
         name = typ + str(self.n)
         return name
     
@@ -151,6 +205,12 @@ class Graph():
             return True
     
     def _parse_row(self, row):
+        """
+        Parses a row from the Pandes dataframe generated from reading the csv.
+        
+        Args:
+        - row (Pandas row): the row to parse.
+        """
         if not self._isnull(row['email_activity']): # TODO : add email action 'Attach'
             # edge
             edge_type = row['email_activity']
@@ -206,6 +266,12 @@ class Graph():
             self.add_edge(edge_name, edge_time, edge_tail, edge_head, edge_type)
     
     def read_data(self, data_path):
+        """
+        Reads a csv file of CERT data.
+        
+        Args:
+        - data_path (str): valid path to the csv file.
+        """
         df = pd.read_csv(data_path)
         print('reading data ...')
         for idx, row in tqdm(df.iterrows()):
@@ -329,6 +395,10 @@ class Graph():
     """
     
     def to_vertices_obj(self, edge): #TODO : optimize this !
+        """
+        Converts an edge to the Vertex objects corresponding to edge.tail and
+        edge.head.
+        """
         u, v = self.get_vertex_index(edge.tail), self.get_vertex_index(edge.head)
         return u, v
     
@@ -347,15 +417,9 @@ class Graph():
         Function for saving the graph data to a file after it has been built.
         
         Args :
-        path (str) : a valid path to save the graph.
+        - path (str) : a valid path to save the graph.
         """
         with open(path, 'w') as f:
-            f.write("Graph %s, %s\n" % (len(self.vertices), len(self.edges)))
-            f.write("vertices\n")
-            for v in self.vertices:
-                f.write(v.elements_as_str())
-                f.write("\n")
-            f.write("edges\n")
             for e in self.edges:
                 f.write(e.elements_as_str())
                 f.write("\n")
@@ -363,37 +427,36 @@ class Graph():
     def read_graph_file(self, path):
         """
         Reads a graph directly from file.
-        Fills the lists of vertices and edges from the file.
+        Fills the lists of edges from the file.
         
         Args:
         path (str) : a valid path to a graph file
         """
-        mode = ''
         with open(path, 'r') as f:
             for line in f:
-                if line == 'vertices\n':
-                    mode = 'v'
-                elif line == 'edges\n':
-                    mode = 'e'
-                elif mode == 'v':
-                    self.vertices.append(Vertex(*line.replace('\n', '').split(',')))
-                elif mode == 'e':
-                    self.edges.append(Edge(*line.replace('\n', '').split(',')))
+                self.edges.append(Edge(*line.replace('\n', '').split(',')))
+        self.sort_edges()
+        self.create_vertices()
     
     def temporal_match(self, M, d):
         """
         Temporal subgraph matching function.
+        
+        Args:
+        - M (Graph): the temporal motif to search in the graph.
+        - d (number): the maximum temporal difference between first edge and
+        last edge in matched subgraphs.
         """
-        edgeCount = [0] * len(self.edges)
-        mapGM = [-1] * len(self.edges)
-        mapMG = [-1] * len(M.edges)
+        edgeCount = [0] * len(self.vertices)
+        mapGM = [-1] * len(self.vertices)
+        mapMG = [-1] * len(M.vertices)
         results = []
         eStack = []
         eG = 0
         eM = 0
         t = float('inf')
         i = 0
-        while i < 100000:
+        while True:
             i += 1
             eG = self.find_next_match(M, eM, eG, mapMG, mapGM, t)
             print('eG : %s' % eG)
@@ -404,7 +467,7 @@ class Graph():
             # We matched something !
                 if eM == len(M.edges) - 1:
                     print('YAYAYAY!!!!!')
-                    edges = [self.edges[e] for e in eStack]
+                    edges = [self.edges[e] for e in eStack] + [self.edges[eG]]
                     results.append(Graph(elist=edges))
                 else:
                     uG, vG = self.to_vertices(eG)
@@ -423,6 +486,7 @@ class Graph():
             while eG >= len(self.edges) or self.edges[eG].timestamp > t:
                 if eStack != []:
                     eG = eStack.pop() + 1
+                    #uG, vG = self.to_vertices(eG)
                     if eStack == []:
                         t = float('inf')
                     edgeCount[uG] -= 1
@@ -435,47 +499,50 @@ class Graph():
                         vM = mapGM[vG]
                         mapMG[vM] = -1
                         mapGM[vG] = -1
+                    #eG += 1
                     eM -= 1
                 else:
                     return results
         
     def find_next_match(self, M, eM, eG, mapMG, mapGM, t):
         """
-        Matchfinding auxilliary function
+        Matchfinding auxilliary function.
         """
         uM, vM = M.to_vertices(eM)
+        print('uM, vM : %s, %s' % (uM, vM))
+        print(mapMG)
         uG = mapMG[uM]
         vG = mapMG[vM]
         # Determine potential edges to try :
         S = range(len(self.edges))
         if uG >= 0 and vG >= 0:
             print('case 0')
-            '''
+            #'''
             S = [e for e, edge in enumerate(self.edges) if
                     e >= eG
                     and edge.tail == self.vertices[uG].name
                     and edge.head == self.vertices[vG].name
                     and edge.timestamp <= t]
-            '''
-            S = range(eG, len(self.edges))
+            #'''
+            #S = range(eG, len(self.edges))
         elif uG >= 0:
             print('case 1')
-            '''
+            #'''
             S = [e for e, edge in enumerate(self.edges) if
                     e >= eG
                     and edge.tail == self.vertices[uG].name
                     and edge.timestamp <= t]
-            '''
-            S = range(eG, len(self.edges))
+            #'''
+            #S = range(eG, len(self.edges))
         elif vG >= 0:
             print('case 2')
-            '''
+            #'''
             S = [e for e, edge in enumerate(self.edges) if
                     e >= eG
                     and edge.head == self.vertices[vG].name
                     and edge.timestamp <= t]
-            '''
-            S = range(eG, len(self.edges))
+            #'''
+            #S = range(eG, len(self.edges))
         else:
             print('case 3')
         print('len s : %s' % len(S))
@@ -495,7 +562,11 @@ class Graph():
         """
         Transforms an edge index into the vertex indices corresponding to the
         head and tail of the underlying edge.
+        
+        Args:
+        - e (int): index of the Edge in the Edge list.
         """
+        #print('to v from %s' % e)
         edge = self.edges[e]
         return self.get_vertex_index(edge.tail), self.get_vertex_index(edge.head)
     
