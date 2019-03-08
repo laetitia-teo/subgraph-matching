@@ -15,7 +15,7 @@ run the jupyter notebook
 
 go in the graph subdirectory and run Python 3
 
-```
+```Python
 >>> import CERTGraph as cg
 >>> graph = cg.Graph()
 >>> graph.read_file('../data/cert_b_users/insiders/CDE1846-logs.csv') # loads the graph from file
