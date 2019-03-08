@@ -13,7 +13,8 @@ run the jupyter notebook
 
 ## Testing the graph builder
 
-go in the graph subdirectory and run Python 3
+Go in the graph subdirectory and run Python 3.
+This is an example code to run the data reading and the temporal matching of a small subgraph M.
 
 ```Python
 import CERTGraph as cg
