@@ -1,6 +1,9 @@
 # subgraph-matching
 
-Subgraph matching for insider threat detection
+Subgraph matching for insider threat detection.
+Implementation of https://arxiv.org/pdf/1801.08098.pdf
+
+requires numpy and pandas to run.
 
 ## Exploring the data
 
@@ -10,7 +13,11 @@ run the jupyter notebook
 
 ## Testing the graph builder
 
-cd build-graph/  
-python3  
-from main import *  
-test and print things  
+go in the graph subdirectory and run Python 3
+
+```
+>>> import CERTGraph as cg
+>>> graph = cg.Graph()
+>>> graph.read_file('../data/cert_b_users/insiders/CDE1846-logs.csv') # loads the graph from file
+>>> print(graph)
+```
