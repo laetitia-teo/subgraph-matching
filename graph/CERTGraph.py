@@ -96,7 +96,7 @@ class Graph():
         # A dictionnary for storing the email content : since we lack an email 
         # identifier in the log data, we assume two emails to be the same if the
         # email content matches.
-        if g_file:
+        if efile:
             self.read_graph_file(g_file)
         if elist:
             self.edges = copy(elist) # is it useful to copy ?
@@ -486,7 +486,8 @@ class Graph():
             while eG >= len(self.edges) or self.edges[eG].timestamp > t:
                 if eStack != []:
                     eG = eStack.pop() + 1
-                    #uG, vG = self.to_vertices(eG)
+                    uG, vG = self.to_vertices(eG-1)
+                    uM, vM = M.to_vertices(eM)
                     if eStack == []:
                         t = float('inf')
                     edgeCount[uG] -= 1
@@ -509,12 +510,13 @@ class Graph():
         Matchfinding auxilliary function.
         """
         uM, vM = M.to_vertices(eM)
-        print('uM, vM : %s, %s' % (uM, vM))
-        print(mapMG)
+        #print('uM, vM : %s, %s' % (uM, vM))
+        #print(mapMG)
         uG = mapMG[uM]
         vG = mapMG[vM]
         # Determine potential edges to try :
-        S = range(len(self.edges))
+        S = [e for e, edge in enumerate(self.edges) if 
+                e >= eG and edge.timestamp <= t]
         if uG >= 0 and vG >= 0:
             print('case 0')
             #'''
